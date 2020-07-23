@@ -1,0 +1,66 @@
+version: 2.1
+jobs:
+  unit-test:
+    docker:
+      - image: circleci/python:3.7.3
+    steps:
+      - checkout
+      - run:
+          name: Upgrade pip
+          command: |
+            sudo pip install --upgrade pip
+      - run:
+          name: Install requirements
+          command: |
+            sudo pip install -r requirements.txt
+      - run:
+          name: Running unit test
+          command: |
+            python -m src.unit-test.unit_test
+  build:
+    docker:
+      - image: circleci/python:3.7.3
+    steps:
+      - checkout
+      - run:
+          name: Create package distribution
+          command: |
+            python setup.py sdist
+      - persist_to_workspace:
+          root: dist
+          paths:
+            - .
+  pypi:
+    docker:
+      - image: circleci/python:3.7.3
+    steps:
+      - checkout
+      - attach_workspace:
+          at: dist
+      - run:
+          name: Install twine
+          command: |
+            sudo pip install twine
+      - run:
+          name: init .pypirc
+          command: |
+            echo -e "[pypi]" > ~/.pypirc
+            echo -e "username = ${PYPI_USERNAME}" >> ~/.pypirc
+            echo -e "password = ${PYPI_PASSWORD}" >> ~/.pypirc
+      - run:
+          name: Uploading updated package
+          command: |
+            sudo twine upload -u ${PYPI_USERNAME} -p ${PYPI_PASSWORD} dist/*.tar.gz
+workflows:
+  deployment:
+    jobs:
+      - unit-test
+      - build:
+          requires:
+            - unit-test
+      - pypi:
+          filters:
+            branches:
+              only: master
+          requires:
+            - build
