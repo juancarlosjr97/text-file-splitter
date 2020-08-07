@@ -1,0 +1,9 @@
+venv
+.DS_Store
+.vscode
+*.egg-info
+*.pyc
+*.pyo
+dist/
+output/
+.history
