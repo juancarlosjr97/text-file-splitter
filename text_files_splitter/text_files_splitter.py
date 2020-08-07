@@ -1,20 +1,23 @@
-#!/usr/bin/env python
-
 import os
-
-
-class ListMetrics:
-    B = ['B', 0]
-    KB = ['KB', 1]
-    MB = ['MB', 2]
-    GB = ['GB', 3]
-    TB = ['TB', 4]
-    PB = ['PB', 5]
+import re
 
 
 class BytesMultiples:
     DECIMAL = 1000
     BINARY = 1024
+
+
+def get_exp_by_metric(metric_unit):
+    metric = {
+        'B': 0,
+        'K': 1,
+        'M': 2,
+        'G': 3,
+        'T': 4,
+        'P': 5
+    }
+
+    return metric[metric_unit]
 
 
 def remove_file(file_name):
@@ -25,7 +28,7 @@ def get_file_size_bytes(file_name):
     return os.path.getsize(file_name)
 
 
-def get_file_size_metric(file_bytes, metric=ListMetrics.B, bytes_multiples=BytesMultiples.DECIMAL):
+def get_file_size_metric(file_bytes, metric=get_exp_by_metric('B'), bytes_multiples=BytesMultiples.DECIMAL):
 
     total_divisions = metric[1]
     file_size_metric = file_bytes
@@ -69,17 +72,13 @@ def create_file_splitted(output_directory, file_splitted_name):
     return open(file_path, 'w')
 
 
-def close_file(file_object):
-    file_object.close()
-
-
 class TextFilesSplitter():
-    def __init__(self, source_file, file_name, max_size_file, file_type='csv', metric_units=ListMetrics.B, output_directory='.', include_header=True, file_suffix=None):
-        self.source_file = source_file
-        self.file_name = file_name
-        self.max_size_file = max_size_file
-        self.file_type = file_type
-        self.metric_units = metric_units
+    def __init__(self, file_path, max_size_file, file_type='csv', output_directory='.', include_header=True, file_suffix=None):
+        self.file_path = file_path
+        self.file_name = os.path.basename(file_path)
+        self.max_size_file = int(re.search(r'\d+', max_size_file).group())
+        metric_unit = max_size_file.replace(str(self.max_size_file), '')
+        self.metric_units = get_exp_by_metric(metric_unit)
 
         if not os.path.isdir(output_directory):
             os.mkdir(output_directory)
@@ -87,6 +86,8 @@ class TextFilesSplitter():
         self.output_directory = output_directory
         self.include_header = include_header
         self.file_suffix = file_suffix
+
+        self.file_suffix = file_suffix or self.file_name
 
     def append_new_file(self, file_size, count):
         self.splitted_files.append({
@@ -100,22 +101,17 @@ class TextFilesSplitter():
 
         self.splitted_files = []
 
-        file_path = os.path.join(self.source_file, self.file_name)
-
         self._buffer = 1000000
 
-        if not os.path.exists(file_path):
+        if not os.path.exists(self.file_path):
             raise FileNotFoundError(
-                'The file {} does not exist.'.format(file_path))
+                'The file {} does not exist.'.format(self.file_path))
 
         file_size_limit = get_size_to_metric(
-            self.max_size_file, self.metric_units[1])
-
-        if not self.file_suffix:
-            self.file_suffix = self.file_name
+            self.max_size_file, self.metric_units)
 
         split_count = 1
-        file_to_split = open(file_path, 'r')
+        file_to_split = open(self.file_path, 'r')
 
         header_value = file_to_split.readline()
 
@@ -127,7 +123,6 @@ class TextFilesSplitter():
         lines_to_append_file = []
         current_splitted_file_size = 0
         total_size = 0
-        line_count = 0
 
         def file_splitted_setup(
                 current_splitted_file_size, total_size, first_file):
@@ -154,7 +149,8 @@ class TextFilesSplitter():
             total_size += size
 
             if (last_row):
-                close_file(current_file_splitted)
+
+                current_file_splitted.close()
                 current_file_splitted, current_splitted_file_size, total_size = file_splitted_setup(
                     current_splitted_file_size, total_size, False)
 
@@ -180,13 +176,11 @@ class TextFilesSplitter():
                 last_row = "".join(line)
                 split_count += 1
 
-            line_count += 1
-
         if (lines_to_append_file):
             self.append_new_file(current_splitted_file_size, split_count)
             current_file_splitted.write("".join(lines_to_append_file))
-            close_file(current_file_splitted)
+            current_file_splitted.close()
 
-        close_file(file_to_split)
+        file_to_split.close()
 
         return self.splitted_files
