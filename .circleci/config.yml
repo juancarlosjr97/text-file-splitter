@@ -16,7 +16,7 @@ jobs:
       - run:
           name: Running unit test
           command: |
-            python -m src.unit-test.unit_test
+            python -m unittest
   build:
     docker:
       - image: circleci/python:3.7.3
